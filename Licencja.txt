@@ -1,0 +1,68 @@
+﻿LICENCJA PROGRAMU „LabiryntOL”
+=============================
+
+Copyright (c) 2026 Aleksander Markowski i Krzysztof Markowski
+Wszelkie prawa zastrzeżone.
+
+Program: LabiryntOL
+Wersja:  0.0.0.1
+Autorzy: Aleksander Markowski, Krzysztof Markowski
+
+
+1. POSTANOWIENIA OGÓLNE
+
+   Niniejsza licencja określa zasady korzystania z gry „LabiryntOL”
+   (dalej: „Program”), obejmującej pliki wykonywalne, kod źródłowy,
+   grafikę oraz wszelkie pozostałe pliki dostarczone wraz z Programem.
+   Korzystanie z Programu oznacza akceptację warunków niniejszej licencji.
+
+
+2. CO WOLNO
+
+   a) Program jest udostępniany bezpłatnie.
+   b) Każdy może pobierać, instalować i używać Programu w celach
+      prywatnych, edukacyjnych i niekomercyjnych, na dowolnej liczbie
+      urządzeń.
+   c) Wolno przekazywać innym osobom niezmienioną kopię Programu,
+      wyłącznie nieodpłatnie i wyłącznie razem z niniejszym plikiem
+      licencji.
+
+
+3. CZEGO NIE WOLNO BEZ PISEMNEJ ZGODY AUTORÓW
+
+   a) Sprzedawać Programu ani pobierać jakichkolwiek opłat za jego
+      udostępnianie, w tym w formie pakietów, kompilacji lub
+      subskrypcji.
+   b) Modyfikować, przerabiać, tłumaczyć ani tworzyć utworów zależnych
+      na podstawie Programu lub jego części (kodu, grafiki, nazwy).
+   c) Rozpowszechniać zmienionych wersji Programu.
+   d) Usuwać lub zmieniać informacji o autorach oraz treści niniejszej
+      licencji.
+   e) Wykorzystywać Programu lub jego części w innych produktach.
+
+
+4. WYŁĄCZENIE ODPOWIEDZIALNOŚCI
+
+   Program jest dostarczany w stanie, w jakim jest („tak jak jest”),
+   bez jakichkolwiek gwarancji, wyraźnych ani dorozumianych, w tym
+   gwarancji przydatności do określonego celu czy bezbłędnego działania.
+
+   Autorzy nie ponoszą odpowiedzialności za jakiekolwiek szkody,
+   bezpośrednie lub pośrednie, w tym utratę danych, uszkodzenie sprzętu
+   lub oprogramowania, wynikające z używania Programu lub niemożności
+   jego używania. Użytkownik korzysta z Programu na własne ryzyko.
+
+
+5. ZGODA AUTORÓW
+
+   W sprawie zgody na działania wymienione w punkcie 3 należy
+   skontaktować się z autorami. Zgoda jest ważna wyłącznie w formie
+   pisemnej (w tym elektronicznej).
+
+
+6. POSTANOWIENIA KOŃCOWE
+
+   W sprawach nieuregulowanych niniejszą licencją zastosowanie mają
+   przepisy prawa polskiego, w szczególności ustawy o prawie autorskim
+   i prawach pokrewnych. Naruszenie warunków licencji powoduje
+   wygaśnięcie prawa do korzystania z Programu.
