@@ -8,6 +8,40 @@ Format oparty jest na [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 _Brak zmian._
 
+## [1.1.0.0] – 2026-11-08
+
+### Dodano
+- Ekran startowy z opisem zadania: ucieczka z labiryntu klawiszami WASD lub strzałkami. Gra zaczyna się po naciśnięciu klawisza ruchu, Entera lub Spacji, a do tego czasu czas stoi.
+- Na ekranie startowym jest informacja, że klawisz `K` pokazuje klawisze sterujące grą.
+- Klawiszologia: klawisz `K` pokazuje i ukrywa listę klawiszy sterujących. Gdy jest widoczna, gra jest wstrzymana. Można ją też zamknąć klawiszem `Esc`.
+
+### Zmieniono
+- Nowa gra uruchamia się klawiszem `P` zamiast `R`, który łatwo było wcisnąć niechcący obok `WASD`. Nowa gra zaczyna się od ekranu startowego.
+- Pasek informacyjny pokazuje skrót sterowania i podpowiedź „K – klawiszologia”.
+
+## [1.0.0.0] – 2026-11-08
+
+Pierwsza pełna wersja gry.
+
+### Dodano
+- Piesek podobny do Yorka. Po 20 sekundach gry można go zostawić za żółwikiem klawiszem `Spacja`. Kolejnego pieska można zostawić co 20 sekund.
+- Krab, który wejdzie na pieska, zatrzymuje się na 3 sekundy (nad krabem wirują gwiazdki), a piesek znika z napisem „Hau!”.
+- Ikona pieska na pasku informacyjnym. Miga z napisem „SPACJA!”, gdy pieska można zostawić. W przeciwnym razie jest szara i pokazuje, ile sekund zostało.
+
+## [0.0.0.2] – 2026-11-08
+
+### Dodano
+- Co 15 sekund w losowym miejscu labiryntu pojawia się nowy krab. Nie pojawia się bliżej niż 8 kroków od żółwika ani na wyjściu.
+- Nowy krab przez 1 sekundę miga i jest wtedy niegroźny, potem rusza w pościg.
+- Na pasku informacyjnym widać liczbę krabów i czas do pojawienia się następnego.
+- Ekran końca gry pokazuje czas gry i liczbę krabów.
+- Klawisz `F11` przełącza między pełnym ekranem a oknem.
+
+### Zmieniono
+- Gra uruchamia się w trybie pełnoekranowym. Plansza jest skalowana do rozdzielczości ekranu z zachowaniem proporcji, a kursor myszy jest ukryty.
+- `Esc` w trybie pełnoekranowym przełącza grę do okna. Dopiero w oknie `Esc` zamyka grę.
+- Pasek informacyjny ma dwie linie, w drugiej jest opis sterowania.
+
 ## [0.0.0.1] – 2026-11-07
 
 Pierwsza, testowa wersja gry.

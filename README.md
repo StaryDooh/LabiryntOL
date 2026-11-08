@@ -1,21 +1,24 @@
 # 🐢 LabiryntOL
 
-**Wersja:** 0.0.0.1 (wersja testowa)
+**Wersja:** 1.1.0.0
 **Autorzy:** Aleksander Markowski, Krzysztof Markowski
 
 Prosta gra zręcznościowa w Pythonie. Pomóż żółwikowi uciec z labiryntu, zanim złapie go krab! 🦀
 
-Labirynt widać z góry. Przy każdej grze jest losowany na nowo, więc żadna rozgrywka nie wygląda tak samo.
+Labirynt widać z góry. Przy każdej grze jest losowany na nowo, więc żadna rozgrywka nie wygląda tak samo. Gra uruchamia się w trybie pełnoekranowym.
 
 ---
 
 ## 🎮 Zasady gry
 
+- Po uruchomieniu gry pojawia się ekran startowy. Grę zaczynasz klawiszem ruchu, Enterem lub Spacją.
 - Sterujesz **żółwikiem**, który zaczyna w lewym górnym rogu labiryntu.
 - Twoim celem jest dotarcie do **wyjścia**, czyli zielonego pola ze strzałką na prawej krawędzi.
 - Po labiryncie biega **krab**. Rusza po chwili od startu i zawsze wybiera najkrótszą drogę do żółwika.
+- **Co 15 sekund** w losowym miejscu pojawia się **kolejny krab**. Przez pierwszą sekundę miga i jest niegroźny, a potem też rusza w pościg. Im dłużej zwlekasz, tym trudniej!
+- Na pomoc przychodzi **piesek** 🐕 podobny do Yorka. Po 20 sekundach gry możesz go zostawić **spacją** za żółwikiem. Krab, który wpadnie na pieska, **zatrzymuje się na 3 sekundy**, a piesek znika. Kolejnego pieska możesz zostawić co 20 sekund. Gdy piesek jest gotowy, jego ikonka na górze ekranu miga.
 - **Wygrywasz**, gdy żółwik dotrze do wyjścia.
-- **Przegrywasz**, gdy krab złapie żółwika.
+- **Przegrywasz**, gdy którykolwiek krab złapie żółwika.
 
 Krab jest wolniejszy od żółwika, a w labiryncie są pętle, więc da się go okrążyć.
 
@@ -25,8 +28,11 @@ Krab jest wolniejszy od żółwika, a w labiryncie są pętle, więc da się go 
 |--------------------|--------------------------------|
 | `↑` `↓` `←` `→`    | ruch żółwika                   |
 | `W` `A` `S` `D`    | ruch żółwika (alternatywnie)   |
-| `R`                | nowa gra (nowy labirynt)       |
-| `Esc`              | wyjście z gry                  |
+| `Spacja`           | zostaw pieska (co 20 s)        |
+| `P`                | nowa gra (nowy labirynt)       |
+| `K`                | klawiszologia: lista klawiszy, gra wstrzymana |
+| `F11`              | pełny ekran / okno             |
+| `Esc`              | zamyka klawiszologię; wyjście z pełnego ekranu do okna; w oknie zamyka grę |
 
 ## 📋 Wymagania
 
@@ -77,7 +83,7 @@ Do zbudowania instalatora potrzebny jest [Inno Setup 6](https://jrsoftware.org/i
    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" LabiryntOL.iss
    ```
 
-Instalator powstaje w podkatalogu `GitHub`, np. `GitHub\Setup_LabiryntOL_0.0.0.1.exe`. Numer wersji jest odczytywany automatycznie z pliku `LabiryntOL.exe`, więc w skrypcie Inno Setup nie trzeba go zmieniać.
+Instalator powstaje w podkatalogu `GitHub`, np. `GitHub\Setup_LabiryntOL_1.1.0.0.exe`. Numer wersji jest odczytywany automatycznie z pliku `LabiryntOL.exe`, więc w skrypcie Inno Setup nie trzeba go zmieniać.
 
 Instalator jest w języku polskim i wyświetla licencję. Tworzy skrót w menu Start, a skrót na pulpicie opcjonalnie. Pozwala zainstalować grę dla wszystkich użytkowników albo tylko dla bieżącego.
 
@@ -91,7 +97,12 @@ Na początku pliku `labiryntol.py` znajdują się stałe, które zmieniają rozg
 | `KAFEL`                 | rozmiar jednego kafla w pikselach                     | 32        |
 | `KROK_ZOLWIA`           | czas jednego kroku żółwia (s), mniej oznacza szybciej | 0.13      |
 | `KROK_KRABA`            | czas jednego kroku kraba (s), mniej oznacza szybciej  | 0.24      |
-| `START_KRABA`           | po ilu sekundach krab rusza w pościg                  | 1.5       |
+| `START_KRABA`           | po ilu sekundach pierwszy krab rusza w pościg         | 1.5       |
+| `NOWY_KRAB_CO`          | co ile sekund pojawia się nowy krab                   | 15        |
+| `POJAWIANIE`            | jak długo nowy krab miga, zanim ruszy (s)             | 1.0       |
+| `MIN_ODLEGLOSC`         | min. odległość nowego kraba od żółwia (w krokach)     | 8         |
+| `PIESEK_CO`             | co ile sekund można zostawić pieska                   | 20        |
+| `ZATRZYMANIE`           | na ile sekund piesek zatrzymuje kraba                 | 3         |
 | `DODATKOWE_PRZEJSCIA`   | część usuwanych ścian (więcej pętli, łatwiejsza gra)  | 0.08      |
 
 ## 📁 Struktura projektu

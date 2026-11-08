@@ -3,7 +3,9 @@ LabiryntOL - prosta gra labiryntowa (wersja testowa)
 Żółwik ucieka z labiryntu, krab próbuje go złapać.
 
 Sterowanie: strzałki lub WASD
-R - nowa gra, Esc - wyjście
+Spacja - zostaw pieska (co 20 s), P - nowa gra, K - klawiszologia
+F11 - pełny ekran / okno
+Esc - wyjście z pełnego ekranu (w oknie: wyjście z gry)
 
 Wymaga: pip install pygame-ce   (lub: pip install pygame)
 """
@@ -22,17 +24,22 @@ import pygame
 # Ustawienia
 # ---------------------------------------------------------------------------
 NAZWA = "LabiryntOL"
-WERSJA = "0.0.0.1"
+WERSJA = "1.1.0.0"
 
 KOLUMNY = 31          # liczba kafli w poziomie (nieparzysta)
 WIERSZE = 21          # liczba kafli w pionie (nieparzysta)
 KAFEL = 32            # rozmiar kafla w pikselach
-PASEK = 40            # wysokość paska informacyjnego u góry
+PASEK = 60            # wysokość paska informacyjnego u góry
 FPS = 60
 
 KROK_ZOLWIA = 0.13    # sekundy na jeden krok żółwia (przy wciśniętym klawiszu)
 KROK_KRABA = 0.24     # sekundy na jeden krok kraba
 START_KRABA = 1.5     # krab rusza po tylu sekundach
+NOWY_KRAB_CO = 15.0   # co tyle sekund pojawia się nowy krab
+POJAWIANIE = 1.0      # tyle sekund nowy krab miga, zanim ruszy (jest wtedy niegroźny)
+MIN_ODLEGLOSC = 8     # minimalna odległość (w krokach) nowego kraba od żółwia
+PIESEK_CO = 20.0      # co tyle sekund można zostawić pieska (spacja)
+ZATRZYMANIE = 3.0     # na tyle sekund piesek zatrzymuje kraba
 DODATKOWE_PRZEJSCIA = 0.08  # część ścian usuwanych, by powstały pętle
 
 PLIK_IKONY = "ikona.ico"
@@ -52,8 +59,20 @@ ZOLW_WZOR = (25, 95, 40)
 ZOLW_SKORA = (140, 200, 90)
 KRAB = (220, 60, 50)
 KRAB_CIEMNY = (150, 30, 30)
+YORK_SIERSC = (95, 110, 135)     # stalowoniebieski grzbiet
+YORK_PODPALANE = (205, 155, 85)  # podpalana głowa i łapki
+YORK_KOKARDA = (230, 50, 90)
 
 SCIANA_T, PUSTE_T = 1, 0
+
+KLAWISZOLOGIA = [
+    ("Strzałki / W A S D", "ruch żółwika"),
+    ("Spacja", "zostaw pieska (co 20 s)"),
+    ("P", "nowa gra (nowy labirynt)"),
+    ("K", "pokaż / ukryj klawiszologię"),
+    ("F11", "pełny ekran / okno"),
+    ("Esc", "z pełnego ekranu do okna; w oknie – wyjście z gry"),
+]
 
 KIERUNKI = {
     pygame.K_UP: (0, -1), pygame.K_w: (0, -1),
@@ -196,6 +215,12 @@ class Postac:
         self.czas_kroku = czas_kroku
         self.postep = 1.0                # 0..1 – postęp animacji ruchu
         self.kierunek = (1, 0)
+        self.czekaj = 0.0                # sekundy do rozpoczęcia ruchu
+        self.migaj = False               # True – krab dopiero się pojawia
+        self.ogluszony = False           # True – krab zatrzymany przez pieska
+
+    def aktywny(self):
+        return self.czekaj <= 0
 
     def idz(self, nx, ny):
         self.kierunek = (nx - self.x, ny - self.y)
@@ -204,6 +229,11 @@ class Postac:
         self.postep = 0.0
 
     def aktualizuj(self, dt):
+        if self.czekaj > 0:
+            self.czekaj -= dt
+            if self.czekaj <= 0:
+                self.migaj = False
+                self.ogluszony = False
         if self.postep < 1.0:
             self.postep = min(1.0, self.postep + dt / self.czas_kroku)
 
@@ -246,7 +276,59 @@ def rysuj_zolwia(ekran, zolw, czas):
                          (cx + math.cos(a) * r * 0.95, cy + math.sin(a) * r * 0.95), 2)
 
 
+def rysuj_pieska(ekran, cx, cy, r, czas=0.0, szary=False):
+    """Piesek podobny do Yorka (widok z boku, pyszczkiem w prawo); r ~ promień postaci."""
+    def k(kolor):
+        if not szary:
+            return kolor
+        sz = sum(kolor) // 3
+        return (sz, sz, sz)
+    merdanie = math.sin(czas * 20) * r * 0.25
+    # ogonek
+    pygame.draw.line(ekran, k(YORK_SIERSC), (cx - r * 0.75, cy - r * 0.1),
+                     (cx - r * 1.05, cy - r * 0.65 + merdanie * 0.3), max(2, int(r * 0.18)))
+    # łapki
+    for lx in (-0.55, -0.25, 0.25, 0.5):
+        pygame.draw.rect(ekran, k(YORK_PODPALANE),
+                         (cx + lx * r - r * 0.1, cy + r * 0.15, r * 0.2, r * 0.45), border_radius=2)
+    # tułów z długą, opadającą sierścią (frędzle prawie do ziemi)
+    pygame.draw.ellipse(ekran, k(YORK_SIERSC), (cx - r * 0.85, cy - r * 0.4, r * 1.55, r * 0.8))
+    fredzle = [(cx - r * 0.8, cy)]
+    for i in range(7):
+        x = cx - r * 0.8 + i * r * 0.22
+        fredzle += [(x + r * 0.05, cy + r * 0.5), (x + r * 0.11, cy + r * 0.3)]
+    fredzle.append((cx + r * 0.65, cy))
+    pygame.draw.polygon(ekran, k(YORK_SIERSC), fredzle)
+    # grzywka opadająca z głowy na grzbiet
+    pygame.draw.ellipse(ekran, k(YORK_PODPALANE), (cx + r * 0.2, cy - r * 0.45, r * 0.5, r * 0.55))
+    # głowa
+    gx, gy = cx + r * 0.65, cy - r * 0.45
+    pygame.draw.circle(ekran, k(YORK_PODPALANE), (gx, gy), r * 0.42)
+    pygame.draw.ellipse(ekran, k(YORK_PODPALANE), (gx, gy - r * 0.05, r * 0.5, r * 0.3))  # pyszczek
+    # spiczaste uszy
+    for ux in (-0.25, 0.12):
+        pygame.draw.polygon(ekran, k(YORK_PODPALANE), [
+            (gx + ux * r - r * 0.12, gy - r * 0.25),
+            (gx + ux * r + r * 0.12, gy - r * 0.25),
+            (gx + ux * r, gy - r * 0.75)])
+    # kokardka
+    pygame.draw.circle(ekran, k(YORK_KOKARDA), (gx - r * 0.05, gy - r * 0.4), max(2, r * 0.12))
+    # oko i nosek
+    pygame.draw.circle(ekran, (0, 0, 0), (gx + r * 0.15, gy - r * 0.08), max(1, r * 0.08))
+    pygame.draw.circle(ekran, (0, 0, 0), (gx + r * 0.5, gy + r * 0.08), max(1, r * 0.09))
+
+
+def rysuj_gwiazdki(ekran, cx, cy, czas):
+    """Wirujące gwiazdki nad zatrzymanym krabem."""
+    for i in range(3):
+        a = czas * 5 + i * 2 * math.pi / 3
+        x, y = cx + math.cos(a) * KAFEL * 0.35, cy - KAFEL * 0.45 + math.sin(a) * KAFEL * 0.1
+        pygame.draw.circle(ekran, (255, 220, 60), (x, y), 3)
+
+
 def rysuj_kraba(ekran, krab, czas):
+    if krab.migaj and int(krab.czekaj * 8) % 2:
+        return  # miganie przy pojawianiu się
     cx, cy = krab.srodek_ekranu()
     r = KAFEL * 0.3
     ruch = math.sin(czas * 14) * 2
@@ -271,6 +353,8 @@ def rysuj_kraba(ekran, krab, czas):
                          (cx + s * r * 0.35, cy - r * 0.9), 2)
         pygame.draw.circle(ekran, (255, 255, 255), (cx + s * r * 0.35, cy - r * 0.95), 3)
         pygame.draw.circle(ekran, (0, 0, 0), (cx + s * r * 0.35, cy - r * 0.95), 1)
+    if krab.ogluszony:
+        rysuj_gwiazdki(ekran, cx, cy, czas)
 
 
 # ---------------------------------------------------------------------------
@@ -281,11 +365,28 @@ class Gra:
         pygame.init()
         ustaw_ikone()
         pygame.display.set_caption(f"{NAZWA} v{WERSJA}")
-        self.ekran = pygame.display.set_mode((SZER, WYS))
+        self.plansza = pygame.Surface((SZER, WYS))   # gra rysuje się tu, potem skalujemy
+        self.pelny_ekran = True
+        self.ustaw_tryb()
         self.zegar = pygame.time.Clock()
         self.font = pygame.font.SysFont("arial", 22, bold=True)
+        self.font_maly = pygame.font.SysFont("arial", 16)
+        self.font_tytul = pygame.font.SysFont("arial", 72, bold=True)
+        self.pomoc = False           # True – widoczna klawiszologia (gra wstrzymana)
         self.font_duzy = pygame.font.SysFont("arial", 56, bold=True)
         self.nowa_gra()
+
+    def ustaw_tryb(self):
+        if self.pelny_ekran:
+            self.okno = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        else:
+            self.okno = pygame.display.set_mode((SZER, WYS))
+        pygame.mouse.set_visible(not self.pelny_ekran)
+
+    def przelacz_tryb(self, pelny):
+        if pelny != self.pelny_ekran:
+            self.pelny_ekran = pelny
+            self.ustaw_tryb()
 
     def nowa_gra(self):
         self.siatka, self.wyjscie = generuj_labirynt(KOLUMNY, WIERSZE)
@@ -300,9 +401,15 @@ class Gra:
             return min(odl[p], prosto * 1.5, odl_wyj.get(p, 0) * 2)
         pola = [p for p in odl if p != self.wyjscie]
         pole_kraba = max(pola, key=ocena)
-        self.krab = Postac(*pole_kraba, KROK_KRABA)
-        self.stan = "gra"            # "gra", "wygrana", "przegrana"
+        pierwszy = Postac(*pole_kraba, KROK_KRABA)
+        pierwszy.czekaj = START_KRABA
+        self.kraby = [pierwszy]
+        self.stan = "start"          # "start", "gra", "wygrana", "przegrana"
         self.czas_gry = 0.0
+        self.do_nowego_kraba = NOWY_KRAB_CO
+        self.pieski = []             # pola, na których czekają pieski
+        self.do_pieska = PIESEK_CO   # sekundy do możliwości zostawienia pieska
+        self.napisy = []             # [tekst, x, y, pozostały czas] – np. „Hau!”
         self.tlo = self.przygotuj_tlo()
 
     def przygotuj_tlo(self):
@@ -335,57 +442,230 @@ class Gra:
                     return
                 self.zolw.kierunek = (dx, dy)
 
-    def obsluz_kraba(self):
-        if self.czas_gry < START_KRABA or not self.krab.gotowy():
-            return
+    def obsluz_kraby(self):
         cel = (self.zolw.x, self.zolw.y)
-        nx, ny = nastepny_krok(self.siatka, (self.krab.x, self.krab.y), cel)
-        if (nx, ny) != (self.krab.x, self.krab.y):
-            self.krab.idz(nx, ny)
+        for krab in self.kraby:
+            if not krab.aktywny() or not krab.gotowy():
+                continue
+            nx, ny = nastepny_krok(self.siatka, (krab.x, krab.y), cel)
+            if (nx, ny) != (krab.x, krab.y):
+                krab.idz(nx, ny)
+
+    def dodaj_kraba(self):
+        """Nowy krab w losowym wolnym polu, nie za blisko żółwia."""
+        _, odl = najdalsze_pole(self.siatka, (self.zolw.x, self.zolw.y))
+        zajete = {(k.x, k.y) for k in self.kraby} | {self.wyjscie} | set(self.pieski)
+        pola = [p for p, d in odl.items() if d >= MIN_ODLEGLOSC and p not in zajete]
+        if not pola:  # awaryjnie: najdalsze wolne pole
+            pola = [max((p for p in odl if p not in zajete), key=odl.get)]
+        krab = Postac(*random.choice(pola), KROK_KRABA)
+        krab.czekaj = POJAWIANIE
+        krab.migaj = True
+        self.kraby.append(krab)
+
+    def zostaw_pieska(self):
+        """Spacja: piesek zostaje na polu za żółwiem (lub pod nim, gdy z tyłu jest ściana)."""
+        if self.stan != "gra" or self.do_pieska > 0:
+            return
+        z = self.zolw
+        if not z.gotowy():
+            pole = (z.px, z.py)                      # pole, z którego żółw właśnie schodzi
+        else:
+            dx, dy = z.kierunek
+            pole = (z.x - dx, z.y - dy)
+            if not wolne(self.siatka, *pole) or pole[0] >= KOLUMNY - 1:
+                pole = (z.x, z.y)
+        if pole not in self.pieski:
+            self.pieski.append(pole)
+        self.do_pieska = PIESEK_CO
+
+    def obsluz_pieski(self):
+        for krab in self.kraby:
+            pole = (krab.x, krab.y)
+            if pole in self.pieski and not krab.migaj:
+                self.pieski.remove(pole)
+                krab.czekaj = ZATRZYMANIE
+                krab.ogluszony = True
+                cx, cy = pole[0] * KAFEL + KAFEL / 2, pole[1] * KAFEL + PASEK
+                self.napisy.append(["Hau!", cx, cy, 1.0])
+
+    def zlapany(self, krab):
+        # złapanie: ta sama komórka albo mijanie się w przejściu
+        z, k = self.zolw, krab
+        if k.migaj:
+            return False
+        return (z.x, z.y) == (k.x, k.y) or \
+            ((z.x, z.y) == (k.px, k.py) and (k.x, k.y) == (z.px, z.py)
+             and not (z.gotowy() and k.gotowy()))
 
     def sprawdz_koniec(self):
-        # złapanie: ta sama komórka albo mijanie się w przejściu
-        z, k = self.zolw, self.krab
-        zderzenie = (z.x, z.y) == (k.x, k.y) or \
-                    ((z.x, z.y) == (k.px, k.py) and (k.x, k.y) == (z.px, z.py)
-                     and not (z.gotowy() and k.gotowy()))
-        if zderzenie:
+        if any(self.zlapany(k) for k in self.kraby):
             self.stan = "przegrana"
-        elif (z.x, z.y) == self.wyjscie and z.gotowy():
+        elif (self.zolw.x, self.zolw.y) == self.wyjscie and self.zolw.gotowy():
             self.stan = "wygrana"
 
     def aktualizuj(self, dt):
-        if self.stan != "gra":
+        if self.stan != "gra" or self.pomoc:
             return
         self.czas_gry += dt
+        self.do_nowego_kraba -= dt
+        if self.do_nowego_kraba <= 0:
+            self.dodaj_kraba()
+            self.do_nowego_kraba += NOWY_KRAB_CO
+        self.do_pieska = max(0.0, self.do_pieska - dt)
+        for n in self.napisy:
+            n[2] -= dt * 25
+            n[3] -= dt
+        self.napisy = [n for n in self.napisy if n[3] > 0]
         self.zolw.aktualizuj(dt)
-        self.krab.aktualizuj(dt)
+        for krab in self.kraby:
+            krab.aktualizuj(dt)
         self.obsluz_zolwia()
-        self.obsluz_kraba()
+        self.obsluz_kraby()
+        self.obsluz_pieski()
         self.sprawdz_koniec()
 
     # --- rysowanie ---
     def rysuj(self):
-        self.ekran.blit(self.tlo, (0, 0))
-        rysuj_zolwia(self.ekran, self.zolw, self.czas_gry)
-        rysuj_kraba(self.ekran, self.krab, self.czas_gry)
+        ekran = self.plansza
+        ekran.blit(self.tlo, (0, 0))
+        for px, py in self.pieski:
+            rysuj_pieska(ekran, px * KAFEL + KAFEL / 2, py * KAFEL + PASEK + KAFEL * 0.6,
+                         KAFEL * 0.42, self.czas_gry)
+        rysuj_zolwia(ekran, self.zolw, self.czas_gry)
+        for krab in self.kraby:
+            rysuj_kraba(ekran, krab, self.czas_gry)
+        for tekst, x, y, _ in self.napisy:
+            n = self.font.render(tekst, True, (120, 60, 20))
+            ekran.blit(n, n.get_rect(center=(x, y)))
+        self.rysuj_ikone_pieska(ekran)
 
-        info = f"{NAZWA} v{WERSJA}    Czas: {self.czas_gry:5.1f} s    Strzałki/WASD – ruch,  R – nowa gra,  Esc – wyjście"
-        self.ekran.blit(self.font.render(info, True, TEKST), (10, 8))
+        info = (f"{NAZWA} v{WERSJA}   Czas: {self.czas_gry:5.1f} s   "
+                f"Kraby: {len(self.kraby)}   Nowy krab za: {math.ceil(self.do_nowego_kraba):2d} s")
+        ekran.blit(self.font.render(info, True, TEKST), (10, 6))
+        pomoc = self.font_maly.render(
+            "Strzałki/WASD – ruch   Spacja – piesek   K – klawiszologia", True, (170, 175, 190))
+        ekran.blit(pomoc, (10, 36))
 
-        if self.stan != "gra":
-            zaslona = pygame.Surface((SZER, WYS), pygame.SRCALPHA)
-            zaslona.fill((0, 0, 0, 150))
-            self.ekran.blit(zaslona, (0, 0))
+        if self.pomoc:
+            self.przyciemnij(ekran)
+            self.rysuj_klawiszologie(ekran)
+        elif self.stan == "start":
+            self.przyciemnij(ekran)
+            self.rysuj_ekran_startowy(ekran)
+        elif self.stan != "gra":
+            self.przyciemnij(ekran)
             if self.stan == "wygrana":
                 tekst, kolor = "WYGRANA! Żółwik uciekł!", (120, 230, 120)
             else:
                 tekst, kolor = "PRZEGRANA! Krab złapał żółwika!", (240, 100, 90)
             n1 = self.font_duzy.render(tekst, True, kolor)
-            n2 = self.font.render("R – zagraj ponownie,  Esc – wyjście", True, TEKST)
-            self.ekran.blit(n1, n1.get_rect(center=(SZER / 2, WYS / 2 - 20)))
-            self.ekran.blit(n2, n2.get_rect(center=(SZER / 2, WYS / 2 + 40)))
+            n2 = self.font.render(f"Czas: {self.czas_gry:.1f} s,  kraby: {len(self.kraby)}", True, TEKST)
+            n3 = self.font.render("P – zagraj ponownie     K – klawiszologia", True, TEKST)
+            ekran.blit(n1, n1.get_rect(center=(SZER / 2, WYS / 2 - 30)))
+            ekran.blit(n2, n2.get_rect(center=(SZER / 2, WYS / 2 + 30)))
+            ekran.blit(n3, n3.get_rect(center=(SZER / 2, WYS / 2 + 65)))
+        self.pokaz()
+
+    def przyciemnij(self, ekran):
+        zaslona = pygame.Surface((SZER, WYS), pygame.SRCALPHA)
+        zaslona.fill((0, 0, 0, 160))
+        ekran.blit(zaslona, (0, 0))
+
+    def rysuj_ramke(self, ekran, w, h):
+        ramka = pygame.Rect(0, 0, w, h)
+        ramka.center = (SZER / 2, PASEK + (WYS - PASEK) / 2)
+        pygame.draw.rect(ekran, (30, 36, 52), ramka, border_radius=16)
+        pygame.draw.rect(ekran, SCIANA_JASNA, ramka, 3, border_radius=16)
+        return ramka
+
+    def rysuj_ekran_startowy(self, ekran):
+        ramka = self.rysuj_ramke(ekran, 760, 430)
+        y = ramka.top + 30
+        tytul = self.font_tytul.render(NAZWA, True, (120, 230, 120))
+        ekran.blit(tytul, tytul.get_rect(midtop=(SZER / 2, y)))
+        y += 95
+        for linia, kolor in (
+                ("Twoje zadanie: pomóż żółwikowi uciec z labiryntu!", TEKST),
+                ("Steruj klawiszami W A S D lub strzałkami.", TEKST),
+                ("Uważaj na kraby – co 15 sekund pojawia się nowy.", (240, 150, 140)),
+                ("Po 20 sekundach możesz zostawić pieska (Spacja), który zatrzyma kraba.", (205, 175, 120))):
+            n = (self.font if kolor == TEKST else self.font_maly).render(linia, True, kolor)
+            ekran.blit(n, n.get_rect(midtop=(SZER / 2, y)))
+            y += 36
+        y += 14
+        n = self.font.render("K – klawisze sterujące grą", True, (255, 220, 90))
+        ekran.blit(n, n.get_rect(midtop=(SZER / 2, y)))
+        y += 50
+        if int(pygame.time.get_ticks() / 500) % 2 == 0:
+            n = self.font.render("Naciśnij klawisz ruchu, Enter lub Spację, aby zacząć", True, TEKST)
+            ekran.blit(n, n.get_rect(midtop=(SZER / 2, y)))
+
+    def rysuj_klawiszologie(self, ekran):
+        ramka = self.rysuj_ramke(ekran, 840, 400)
+        y = ramka.top + 25
+        n = self.font_duzy.render("Klawiszologia", True, (255, 220, 90))
+        ekran.blit(n, n.get_rect(midtop=(SZER / 2, y)))
+        y += 85
+        for klawisz, opis in KLAWISZOLOGIA:
+            k = self.font.render(klawisz, True, (255, 220, 90))
+            o = self.font.render(opis, True, TEKST)
+            ekran.blit(k, k.get_rect(topright=(ramka.left + 260, y)))
+            ekran.blit(self.font.render("–", True, TEKST), (ramka.left + 275, y))
+            ekran.blit(o, (ramka.left + 300, y))
+            y += 38
+        y += 10
+        n = self.font_maly.render("K lub Esc – zamknij (gra jest wstrzymana)", True, (170, 175, 190))
+        ekran.blit(n, n.get_rect(midtop=(SZER / 2, y)))
+
+    def rysuj_ikone_pieska(self, ekran):
+        """Ikona pieska na pasku: miga, gdy można go zostawić; szara z odliczaniem, gdy nie."""
+        cx, cy = SZER - 150, PASEK / 2 + 4
+        if self.do_pieska <= 0:
+            if self.stan != "gra" or int(self.czas_gry * 3) % 2 == 0:
+                rysuj_pieska(ekran, cx, cy, 20, self.czas_gry)
+            napis = self.font.render("SPACJA!", True, (255, 220, 90))
+        else:
+            rysuj_pieska(ekran, cx, cy, 20, szary=True)
+            napis = self.font.render(f"za {math.ceil(self.do_pieska):2d} s", True, (150, 150, 160))
+        ekran.blit(napis, napis.get_rect(midleft=(cx + 32, PASEK / 2)))
+
+    def pokaz(self):
+        """Przenosi planszę na ekran; w pełnym ekranie skaluje z zachowaniem proporcji."""
+        ow, oh = self.okno.get_size()
+        if (ow, oh) == (SZER, WYS):
+            self.okno.blit(self.plansza, (0, 0))
+        else:
+            skala = min(ow / SZER, oh / WYS)
+            w, h = int(SZER * skala), int(WYS * skala)
+            self.okno.fill((0, 0, 0))
+            self.okno.blit(pygame.transform.smoothscale(self.plansza, (w, h)),
+                           ((ow - w) // 2, (oh - h) // 2))
         pygame.display.flip()
+
+    def obsluz_klawisz(self, klawisz):
+        """Zwraca False, gdy gra ma się zakończyć."""
+        if klawisz == pygame.K_ESCAPE:
+            if self.pomoc:
+                self.pomoc = False
+            elif self.pelny_ekran:
+                self.przelacz_tryb(False)
+            else:
+                return False
+        elif klawisz == pygame.K_k:
+            self.pomoc = not self.pomoc
+        elif klawisz == pygame.K_F11:
+            self.przelacz_tryb(not self.pelny_ekran)
+        elif self.pomoc:
+            return True                      # przy otwartej klawiszologii reszta nie działa
+        elif klawisz == pygame.K_p:
+            self.nowa_gra()
+        elif self.stan == "start":
+            if klawisz in KIERUNKI or klawisz in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                self.stan = "gra"
+        elif klawisz == pygame.K_SPACE:
+            self.zostaw_pieska()
+        return True
 
     def uruchom(self):
         while True:
@@ -394,10 +674,8 @@ class Gra:
                 if zd.type == pygame.QUIT:
                     return
                 if zd.type == pygame.KEYDOWN:
-                    if zd.key == pygame.K_ESCAPE:
+                    if self.obsluz_klawisz(zd.key) is False:
                         return
-                    if zd.key == pygame.K_r:
-                        self.nowa_gra()
             self.aktualizuj(dt)
             self.rysuj()
 
