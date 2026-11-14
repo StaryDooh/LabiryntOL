@@ -3,7 +3,8 @@ LabiryntOL - prosta gra labiryntowa (wersja testowa)
 Żółwik ucieka z labiryntu, krab próbuje go złapać.
 
 Sterowanie: strzałki lub WASD
-Spacja - zostaw pieska (co 20 s), P - nowa gra, K - klawiszologia
+Spacja - zostaw pieska (co 20 s), Enter - start / następny poziom
+P - nowa gra od poziomu 1, K - klawiszologia
 F11 - pełny ekran / okno
 Esc - wyjście z pełnego ekranu (w oknie: wyjście z gry)
 
@@ -24,7 +25,7 @@ import pygame
 # Ustawienia
 # ---------------------------------------------------------------------------
 NAZWA = "LabiryntOL"
-WERSJA = "1.1.0.0"
+WERSJA = "1.2.0.1"
 
 KOLUMNY = 31          # liczba kafli w poziomie (nieparzysta)
 WIERSZE = 21          # liczba kafli w pionie (nieparzysta)
@@ -33,14 +34,18 @@ PASEK = 60            # wysokość paska informacyjnego u góry
 FPS = 60
 
 KROK_ZOLWIA = 0.13    # sekundy na jeden krok żółwia (przy wciśniętym klawiszu)
-KROK_KRABA = 0.24     # sekundy na jeden krok kraba
-START_KRABA = 1.5     # krab rusza po tylu sekundach
-NOWY_KRAB_CO = 15.0   # co tyle sekund pojawia się nowy krab
+# Poziomy trudności: wartość na poziomie 1, zmiana na każdy kolejny poziom, granica.
+KROK_KRABA = (0.32, -0.015, 0.20)     # sekundy na krok kraba (mniej = szybszy)
+START_KRABA = (3.0, -0.25, 1.0)       # po tylu sekundach rusza pierwszy krab
+NOWY_KRAB_CO = (20.0, -1.5, 10.0)     # co tyle sekund pojawia się nowy krab
+PRZEJSCIA = (0.14, -0.01, 0.05)       # część ścian usuwanych, by powstały pętle
+KRAB_WIECEJ_CO = 4    # co tyle poziomów o jednego kraba więcej na starcie (poz. 5, 9)
+MAX_KRABOW_START = 3  # najwięcej krabów na starcie poziomu
+ODNOGI_STARTU = 1 / 3 # ze startu wychodzą 2 osobne drogi o długości >= tej części szerokości planszy
 POJAWIANIE = 1.0      # tyle sekund nowy krab miga, zanim ruszy (jest wtedy niegroźny)
 MIN_ODLEGLOSC = 8     # minimalna odległość (w krokach) nowego kraba od żółwia
 PIESEK_CO = 20.0      # co tyle sekund można zostawić pieska (spacja)
 ZATRZYMANIE = 3.0     # na tyle sekund piesek zatrzymuje kraba
-DODATKOWE_PRZEJSCIA = 0.08  # część ścian usuwanych, by powstały pętle
 
 PLIK_IKONY = "ikona.ico"
 
@@ -68,7 +73,8 @@ SCIANA_T, PUSTE_T = 1, 0
 KLAWISZOLOGIA = [
     ("Strzałki / W A S D", "ruch żółwika"),
     ("Spacja", "zostaw pieska (co 20 s)"),
-    ("P", "nowa gra (nowy labirynt)"),
+    ("Enter", "start / następny poziom / powtórz poziom"),
+    ("P", "nowa gra od poziomu 1"),
     ("K", "pokaż / ukryj klawiszologię"),
     ("F11", "pełny ekran / okno"),
     ("Esc", "z pełnego ekranu do okna; w oknie – wyjście z gry"),
@@ -80,6 +86,18 @@ KIERUNKI = {
     pygame.K_LEFT: (-1, 0), pygame.K_a: (-1, 0),
     pygame.K_RIGHT: (1, 0), pygame.K_d: (1, 0),
 }
+
+
+def wartosc_poziomu(parametr, poziom):
+    """Wartość parametru (start, zmiana, granica) na danym poziomie."""
+    poczatek, zmiana, granica = parametr
+    w = poczatek + zmiana * (poziom - 1)
+    return max(w, granica) if zmiana < 0 else min(w, granica)
+
+
+def liczba(x):
+    """Liczba po polsku: 20 -> „20”, 18.5 -> „18,5”."""
+    return f"{round(x, 1):g}".replace(".", ",")
 
 
 def sciezka_zasobu(nazwa):
@@ -120,7 +138,26 @@ def ustaw_ikone():
 # ---------------------------------------------------------------------------
 # Labirynt
 # ---------------------------------------------------------------------------
-def generuj_labirynt(kol, wier):
+def generuj_labirynt(kol, wier, przejscia):
+    """Losuje labirynt, w którym ze startu wychodzą dwie osobne drogi o długości
+    co najmniej 1/3 szerokości planszy, łączące się dopiero dalej (start leży na
+    długiej pętli). Krab spotkany tuż po starcie zawsze da się obejść drugą drogą.
+    Około 3/4 labiryntów spełnia ten warunek od razu – pozostałe losujemy ponownie,
+    dzięki czemu trudność poziomu się nie zmienia."""
+    start = (1, 1)
+    dlugosc = max(2, round(kol * ODNOGI_STARTU))
+    for _ in range(50):
+        siatka, wyjscie, zapas = generuj_labirynt_raz(kol, wier, przejscia)
+        if dobry_start(siatka, start, dlugosc):
+            return siatka, wyjscie
+    # awaryjnie (praktycznie się nie zdarza): otwieraj kolejne ściany
+    while zapas and not dobry_start(siatka, start, dlugosc):
+        x, y = zapas.pop()
+        siatka[y][x] = PUSTE_T
+    return siatka, wyjscie
+
+
+def generuj_labirynt_raz(kol, wier, przejscia):
     """Generuje labirynt metodą DFS (recursive backtracker) na siatce kafli.
     Komórki mają nieparzyste współrzędne, ściany są pomiędzy nimi."""
     siatka = [[SCIANA_T] * kol for _ in range(wier)]
@@ -153,13 +190,77 @@ def generuj_labirynt(kol, wier):
             if poziomo != pionowo:
                 kandydaci.append((x, y))
     random.shuffle(kandydaci)
-    for x, y in kandydaci[: int(len(kandydaci) * DODATKOWE_PRZEJSCIA)]:
+    ile = int(len(kandydaci) * przejscia)
+    for x, y in kandydaci[:ile]:
         siatka[y][x] = PUSTE_T
+    zapas = kandydaci[ile:]          # ściany, które można jeszcze otworzyć
 
     # Wyjście na prawej krawędzi, w dolnej połowie
     wy = random.choice(range(wier // 2 | 1, wier - 1, 2))
     siatka[wy][kol - 1] = PUSTE_T
-    return siatka, (kol - 1, wy)
+    wyjscie = (kol - 1, wy)
+
+    # Start: żółw ma od razu dwie drogi – w prawo i w dół
+    siatka[1][2] = PUSTE_T
+    siatka[2][1] = PUSTE_T
+    return siatka, wyjscie, zapas
+
+
+def sasiedzi_pola(siatka, p):
+    x, y = p
+    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        if wolne(siatka, x + dx, y + dy):
+            yield (x + dx, y + dy)
+
+
+def blok_startu(siatka, start):
+    """Pola leżące na wspólnej pętli ze startem (blok dwuspójny zawierający oba
+    wyjścia ze startu). Do każdego z tych pól prowadzą ze startu dwie drogi
+    bez wspólnych pól. Algorytm Tarjana, wersja bez rekurencji."""
+    numer, niski = {start: 0}, {start: 0}
+    licznik = 1
+    stos_krawedzi = []
+    stos = [(start, None, iter(list(sasiedzi_pola(siatka, start))))]
+    while stos:
+        u, rodzic, it = stos[-1]
+        for v in it:
+            if v == rodzic:
+                continue
+            if v not in numer:
+                numer[v] = niski[v] = licznik
+                licznik += 1
+                stos_krawedzi.append((u, v))
+                stos.append((v, u, iter(list(sasiedzi_pola(siatka, v)))))
+                break
+            if numer[v] < numer[u]:
+                stos_krawedzi.append((u, v))
+                niski[u] = min(niski[u], numer[v])
+        else:
+            stos.pop()
+            if rodzic is None:
+                continue
+            niski[rodzic] = min(niski[rodzic], niski[u])
+            if niski[u] >= numer[rodzic]:          # zamknięty blok
+                blok = set()
+                while True:
+                    a, b = stos_krawedzi.pop()
+                    blok.update((a, b))
+                    if (a, b) == (rodzic, u):
+                        break
+                if rodzic == start and len(blok) > 2:
+                    return blok
+    return set()
+
+
+def dobry_start(siatka, start, dlugosc):
+    """True, gdy start leży na pętli, na której jest pole odległe od startu
+    o co najmniej 'dlugosc' kroków – czyli ze startu wychodzą dwie osobne drogi
+    o długości >= dlugosc, które dopiero potem się spotykają."""
+    blok = blok_startu(siatka, start)
+    if not blok:
+        return False
+    _, odl = najdalsze_pole(siatka, start)
+    return max(odl[p] for p in blok) >= dlugosc
 
 
 def wolne(siatka, x, y):
@@ -388,8 +489,13 @@ class Gra:
             self.pelny_ekran = pelny
             self.ustaw_tryb()
 
-    def nowa_gra(self):
-        self.siatka, self.wyjscie = generuj_labirynt(KOLUMNY, WIERSZE)
+    def nowa_gra(self, poziom=1):
+        self.poziom = poziom
+        self.krok_kraba = wartosc_poziomu(KROK_KRABA, poziom)
+        self.nowy_krab_co = wartosc_poziomu(NOWY_KRAB_CO, poziom)
+        start_kraba = wartosc_poziomu(START_KRABA, poziom)
+        self.siatka, self.wyjscie = generuj_labirynt(
+            KOLUMNY, WIERSZE, wartosc_poziomu(PRZEJSCIA, poziom))
         start = (1, 1)
         self.zolw = Postac(*start, KROK_ZOLWIA)
         # Krab startuje daleko od żółwia, ale nie przy samym wyjściu
@@ -401,13 +507,18 @@ class Gra:
             return min(odl[p], prosto * 1.5, odl_wyj.get(p, 0) * 2)
         pola = [p for p in odl if p != self.wyjscie]
         pole_kraba = max(pola, key=ocena)
-        pierwszy = Postac(*pole_kraba, KROK_KRABA)
-        pierwszy.czekaj = START_KRABA
+        pierwszy = Postac(*pole_kraba, self.krok_kraba)
+        pierwszy.czekaj = start_kraba
         self.kraby = [pierwszy]
         self.stan = "start"          # "start", "gra", "wygrana", "przegrana"
         self.czas_gry = 0.0
-        self.do_nowego_kraba = NOWY_KRAB_CO
+        self.do_nowego_kraba = self.nowy_krab_co
         self.pieski = []             # pola, na których czekają pieski
+        # na wyższych poziomach więcej krabów od początku (ruszają chwilę później)
+        for _ in range(min(MAX_KRABOW_START, 1 + (poziom - 1) // KRAB_WIECEJ_CO) - 1):
+            self.dodaj_kraba(min_odl=20)
+            self.kraby[-1].migaj = False
+            self.kraby[-1].czekaj = start_kraba + 1.0
         self.do_pieska = PIESEK_CO   # sekundy do możliwości zostawienia pieska
         self.napisy = []             # [tekst, x, y, pozostały czas] – np. „Hau!”
         self.tlo = self.przygotuj_tlo()
@@ -451,14 +562,14 @@ class Gra:
             if (nx, ny) != (krab.x, krab.y):
                 krab.idz(nx, ny)
 
-    def dodaj_kraba(self):
+    def dodaj_kraba(self, min_odl=MIN_ODLEGLOSC):
         """Nowy krab w losowym wolnym polu, nie za blisko żółwia."""
         _, odl = najdalsze_pole(self.siatka, (self.zolw.x, self.zolw.y))
         zajete = {(k.x, k.y) for k in self.kraby} | {self.wyjscie} | set(self.pieski)
-        pola = [p for p, d in odl.items() if d >= MIN_ODLEGLOSC and p not in zajete]
+        pola = [p for p, d in odl.items() if d >= min_odl and p not in zajete]
         if not pola:  # awaryjnie: najdalsze wolne pole
             pola = [max((p for p in odl if p not in zajete), key=odl.get)]
-        krab = Postac(*random.choice(pola), KROK_KRABA)
+        krab = Postac(*random.choice(pola), self.krok_kraba)
         krab.czekaj = POJAWIANIE
         krab.migaj = True
         self.kraby.append(krab)
@@ -511,7 +622,7 @@ class Gra:
         self.do_nowego_kraba -= dt
         if self.do_nowego_kraba <= 0:
             self.dodaj_kraba()
-            self.do_nowego_kraba += NOWY_KRAB_CO
+            self.do_nowego_kraba += self.nowy_krab_co
         self.do_pieska = max(0.0, self.do_pieska - dt)
         for n in self.napisy:
             n[2] -= dt * 25
@@ -540,7 +651,7 @@ class Gra:
             ekran.blit(n, n.get_rect(center=(x, y)))
         self.rysuj_ikone_pieska(ekran)
 
-        info = (f"{NAZWA} v{WERSJA}   Czas: {self.czas_gry:5.1f} s   "
+        info = (f"{NAZWA} v{WERSJA}   Poziom: {self.poziom}   Czas: {self.czas_gry:5.1f} s   "
                 f"Kraby: {len(self.kraby)}   Nowy krab za: {math.ceil(self.do_nowego_kraba):2d} s")
         ekran.blit(self.font.render(info, True, TEKST), (10, 6))
         pomoc = self.font_maly.render(
@@ -556,15 +667,19 @@ class Gra:
         elif self.stan != "gra":
             self.przyciemnij(ekran)
             if self.stan == "wygrana":
-                tekst, kolor = "WYGRANA! Żółwik uciekł!", (120, 230, 120)
+                tekst, kolor = f"POZIOM {self.poziom} UKOŃCZONY!", (120, 230, 120)
+                dalej = f"Enter – przejdź do poziomu {self.poziom + 1}"
             else:
                 tekst, kolor = "PRZEGRANA! Krab złapał żółwika!", (240, 100, 90)
+                dalej = f"Enter – spróbuj jeszcze raz poziom {self.poziom}"
             n1 = self.font_duzy.render(tekst, True, kolor)
             n2 = self.font.render(f"Czas: {self.czas_gry:.1f} s,  kraby: {len(self.kraby)}", True, TEKST)
-            n3 = self.font.render("P – zagraj ponownie     K – klawiszologia", True, TEKST)
-            ekran.blit(n1, n1.get_rect(center=(SZER / 2, WYS / 2 - 30)))
-            ekran.blit(n2, n2.get_rect(center=(SZER / 2, WYS / 2 + 30)))
-            ekran.blit(n3, n3.get_rect(center=(SZER / 2, WYS / 2 + 65)))
+            n3 = self.font.render(dalej, True, (255, 220, 90))
+            n4 = self.font.render("P – nowa gra od poziomu 1     K – klawiszologia", True, TEKST)
+            ekran.blit(n1, n1.get_rect(center=(SZER / 2, WYS / 2 - 40)))
+            ekran.blit(n2, n2.get_rect(center=(SZER / 2, WYS / 2 + 20)))
+            ekran.blit(n3, n3.get_rect(center=(SZER / 2, WYS / 2 + 60)))
+            ekran.blit(n4, n4.get_rect(center=(SZER / 2, WYS / 2 + 95)))
         self.pokaz()
 
     def przyciemnij(self, ekran):
@@ -580,15 +695,18 @@ class Gra:
         return ramka
 
     def rysuj_ekran_startowy(self, ekran):
-        ramka = self.rysuj_ramke(ekran, 760, 430)
-        y = ramka.top + 30
+        ramka = self.rysuj_ramke(ekran, 760, 470)
+        y = ramka.top + 25
         tytul = self.font_tytul.render(NAZWA, True, (120, 230, 120))
         ekran.blit(tytul, tytul.get_rect(midtop=(SZER / 2, y)))
-        y += 95
+        y += 85
+        n = self.font_duzy.render(f"Poziom {self.poziom}", True, (255, 220, 90))
+        ekran.blit(n, n.get_rect(midtop=(SZER / 2, y)))
+        y += 75
         for linia, kolor in (
                 ("Twoje zadanie: pomóż żółwikowi uciec z labiryntu!", TEKST),
                 ("Steruj klawiszami W A S D lub strzałkami.", TEKST),
-                ("Uważaj na kraby – co 15 sekund pojawia się nowy.", (240, 150, 140)),
+                (f"Uważaj na kraby – co {liczba(self.nowy_krab_co)} s pojawia się nowy.", (240, 150, 140)),
                 ("Po 20 sekundach możesz zostawić pieska (Spacja), który zatrzyma kraba.", (205, 175, 120))):
             n = (self.font if kolor == TEKST else self.font_maly).render(linia, True, kolor)
             ekran.blit(n, n.get_rect(midtop=(SZER / 2, y)))
@@ -602,7 +720,7 @@ class Gra:
             ekran.blit(n, n.get_rect(midtop=(SZER / 2, y)))
 
     def rysuj_klawiszologie(self, ekran):
-        ramka = self.rysuj_ramke(ekran, 840, 400)
+        ramka = self.rysuj_ramke(ekran, 840, 440)
         y = ramka.top + 25
         n = self.font_duzy.render("Klawiszologia", True, (255, 220, 90))
         ekran.blit(n, n.get_rect(midtop=(SZER / 2, y)))
@@ -663,6 +781,10 @@ class Gra:
         elif self.stan == "start":
             if klawisz in KIERUNKI or klawisz in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
                 self.stan = "gra"
+        elif self.stan in ("wygrana", "przegrana"):
+            if klawisz in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                nastepny = self.poziom + 1 if self.stan == "wygrana" else self.poziom
+                self.nowa_gra(nastepny)
         elif klawisz == pygame.K_SPACE:
             self.zostaw_pieska()
         return True

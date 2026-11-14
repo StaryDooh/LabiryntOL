@@ -8,6 +8,30 @@ Format oparty jest na [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/).
 
 _Brak zmian._
 
+## [1.2.0.1] – 2026-11-14
+
+### Poprawiono
+- Labirynt mógł mieć ze startu tylko jedną drogę. Gdy szedł nią krab, żółwik nie miał gdzie uciec. Teraz ze startu zawsze wychodzą dwie drogi (w prawo i w dół). Każda z nich biegnie osobno przez co najmniej 1/3 szerokości planszy, a dopiero dalej drogi się spotykają, więc start leży na długiej pętli. Żadna z tych dróg nie kończy się ślepym zaułkiem, dlatego kraba spotkanego tuż po starcie zawsze da się obejść.
+- Labirynty niespełniające tego warunku (około 1/4) są losowane od nowa. Dzięki temu nie trzeba otwierać dodatkowych ścian i trudność poziomów się nie zmienia.
+
+## [1.2.0.0] – 2026-11-14
+
+### Dodano
+- Poziomy gry. Po ucieczce z labiryntu `Enter` przenosi do następnego, trudniejszego poziomu. Po przegranej `Enter` pozwala powtórzyć ten sam poziom.
+- Stopniowe zwiększanie trudności z poziomu na poziom:
+  - kraby są coraz szybsze (krok 0,32 s na poziomie 1, potem o 0,015 s krótszy, najwyżej do 0,20 s),
+  - nowe kraby pojawiają się coraz częściej (co 20 s na poziomie 1, potem co 1,5 s rzadziej, najczęściej co 10 s),
+  - pierwszy krab rusza coraz wcześniej (po 3 s na poziomie 1, najwcześniej po 1 s),
+  - w labiryncie jest coraz mniej pętli, więc trudniej okrążyć kraba,
+  - od poziomu 5 na starcie są 2 kraby, a od poziomu 9 są 3.
+- Numer poziomu na pasku informacyjnym i na ekranie startowym.
+- Klawisz `Enter` w klawiszologii.
+
+### Zmieniono
+- Pierwszy poziom jest wyraźnie łatwiejszy niż dotąd: kraby są wolniejsze, nowe pojawiają się rzadziej, a w labiryncie jest więcej pętli. Dotychczasowa trudność odpowiada mniej więcej poziomowi 6.
+- Ekran startowy podaje, co ile sekund na danym poziomie pojawia się nowy krab.
+- `P` zaczyna nową grę od poziomu 1.
+
 ## [1.1.0.0] – 2026-11-08
 
 ### Dodano
